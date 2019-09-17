@@ -12,6 +12,10 @@ from SafeTransformer import SafeTransformer
 from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 
 
 class InteractionTransformer(TransformerMixin):
@@ -82,9 +86,11 @@ class InteractionTransformer(TransformerMixin):
 class InteractionTransformerExtraction(TransformerMixin):# one application is an iteration
     def __init__(self, iterations=1, transform_first=False, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False, penalty=3, pelt_model='l2', no_changepoint_strategy='median'):
         """https://github.com/ModelOriented/SAFE/blob/master/SafeTransformer/SafeTransformer.py"""
-        self.interaction=InteractionTransformer(copy.deepcopy(untrained_model), max_train_test_samples, mode_interaction_extract, include_self_interactions)
-        self.transformation=SafeTransformer(penalty=penalty, model=copy.deepcopy(untrained_model), pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)
-        self.pipeline=Pipeline(list(reduce(lambda x,y:x+y,[[('interaction{}'.format(i),copy.deepcopy(self.interaction)),('transformation{}'.format(i),copy.deepcopy(self.transformation))][::(-1 if transform_first else 1)] for i in range(iterations)])))
+        steps=[]
+        for i in range(iterations):
+            steps.extend([['interaction{}'.format(i),InteractionTransformer(copy.deepcopy(untrained_model), max_train_test_samples, mode_interaction_extract, include_self_interactions)],
+                          ['transformer{}'.format(i),SafeTransformer(penalty=penalty, model=copy.deepcopy(untrained_model), pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)]])
+        self.pipeline=Pipeline(steps)#list(reduce(lambda x,y:x+y,[[('interaction{}'.format(i),copy.deepcopy(self.interaction)),('transformation{}'.format(i),copy.deepcopy(self.transformation))][::(-1 if transform_first else 1)] for i in range(iterations)])))
 
     def fit(self,X,y=None):
         self.pipeline.fit(X,y)
@@ -92,3 +98,22 @@ class InteractionTransformerExtraction(TransformerMixin):# one application is an
 
     def transform(self,X):
         return self.pipeline.transform(X)
+
+def run_shap(X_train, X_test, model, model_type='tree', explainer_options={}, get_shap_values_options={}, overall=False, savefile=''):
+
+    #shap.initjs()
+
+    shap_model={'tree':shap.TreeExplainer,'kernel':shap.KernelExplainer,'linear':shap.LinearExplainer}[model_type]
+
+    explainer = shap_model(model, X_train,**explainer_options)
+
+    shap_values = explainer.shap_values(X_test,**get_shap_values_options)
+
+    if model_type=='tree' and best_estimator.__class__.__name__!='XGBClassifier':
+        shap_values=np.array(shap_values)[1,...]
+
+    plt.figure()
+    shap.summary_plot(shap_values, X_test,feature_names=list(X_train), plot_type='bar' if overall else 'dot', max_display=30, matplotlib=True)
+    if savefile:
+        plt.savefig(savefile,dpi=300)
+    return explainer, shap_values
