@@ -9,7 +9,9 @@ PACKAGES=['scikit-learn',
           'safe-transformer',
           'numpy',
           'pandas',
-          'kneed']
+          'kneed',
+          'imbalanced-learn',
+          'pysnooper']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
@@ -26,7 +28,7 @@ setup(name='interactiontransformer',
       author='Joshua Levy',
       author_email='joshualevy44@berkeley.edu',
       license='MIT',
-      scripts=[], # 'bin/update_kneed'
+      # scripts=[], # 'bin/update_kneed'
       #cmdclass={'install': CustomInstallCommand},
       # entry_points={
       #       'console_scripts':[]

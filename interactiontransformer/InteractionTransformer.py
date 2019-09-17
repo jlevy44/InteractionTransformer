@@ -9,6 +9,9 @@ from sklearn.model_selection import StratifiedKFold
 import patsy
 from functools import reduce
 from SafeTransformer import SafeTransformer
+from imblearn.ensemble import BalancedRandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 
 
 class InteractionTransformer(TransformerMixin):
@@ -50,22 +53,28 @@ class InteractionTransformer(TransformerMixin):
             for i in np.arange(interaction_matrix.shape[0]):
                 interation_matrix_self_interact_removed.iloc[i,i]=0
         if self.mode_extract=='knee':
-            x,y=np.arange(interation_matrix_self_interact_removed.shape[0]**2),np.sort(interation_matrix_self_interact_removed.values.ravel())[::-1]
-            kneed=KneeLocator(x, y, direction='decreasing', curve='convex')
-            n_top_interactions=min(100,kneed.knee)
-        elif self.mode_extract=='sqrt':
-            n_top_interactions=int(np.sqrt(len(features)))
+            try:
+                x,y=np.arange(interation_matrix_self_interact_removed.shape[0]**2),np.sort(interation_matrix_self_interact_removed.values.ravel())[::-1]
+                kneed=KneeLocator(x, y, direction='decreasing', curve='convex')
+                n_top_interactions=min(100,kneed.knee)
+            except Exception as e:
+                print(e)
+                print('Error Detected: Defaulting to SQRT calculation of number of new interaction features.')
+                self.mode_extract='sqrt'
+        if self.mode_extract=='sqrt':
+            n_top_interactions=int(np.sqrt(interaction_matrix.shape[0]))
         else:
             n_top_interactions=self.mode_extract
         self.interaction_matrix=interation_matrix_self_interact_removed
         top_overall_interactions=np.unravel_index(np.argsort(interation_matrix_self_interact_removed.values.ravel())[-n_top_interactions:], interaction_matrix.shape)
-        top_overall_interactions=[tuple(sorted([features[i],features[j]]))+(round(interation_matrix_self_interact_removed.iloc[i,j],6),) for i,j in np.array(top_overall_interactions).T.tolist()]
+        top_overall_interactions=[tuple(sorted([self.features[i],self.features[j]]))+(round(interation_matrix_self_interact_removed.iloc[i,j],6),) for i,j in np.array(top_overall_interactions).T.tolist()]
         true_top_interactions=pd.DataFrame(top_overall_interactions).drop_duplicates()
         return true_top_interactions
 
     def transform(self, X):
-        design_matrix=patsy.dmatrix(design_terms, data=X, return_type='dataframe')
+        design_matrix=patsy.dmatrix(self.design_terms, data=X, return_type='dataframe')
         design_interaction_matrix=design_matrix[[col for col in list(design_matrix) if ':' in col]]
+        design_interaction_matrix.columns=np.vectorize(lambda x: x.replace("Q('",'').replace("')",""))(design_interaction_matrix.columns)
         X=pd.concat([X,design_interaction_matrix],axis=1)
         self.features=list(X)
         return X
@@ -73,11 +82,11 @@ class InteractionTransformer(TransformerMixin):
 class InteractionTransformerExtraction(TransformerMixin):# one application is an iteration
     def __init__(self, iterations=1, transform_first=False, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False, penalty=3, pelt_model='l2', no_changepoint_strategy='median'):
         """https://github.com/ModelOriented/SAFE/blob/master/SafeTransformer/SafeTransformer.py"""
-        self.interaction=InteractionTransformer(untrained_model, max_train_test_samples, mode_interaction_extract, include_self_interactions)
-        self.transformation=SafeTransformer(penalty=penalty, pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)
+        self.interaction=InteractionTransformer(copy.deepcopy(untrained_model), max_train_test_samples, mode_interaction_extract, include_self_interactions)
+        self.transformation=SafeTransformer(penalty=penalty, model=copy.deepcopy(untrained_model), pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)
         self.pipeline=Pipeline(list(reduce(lambda x,y:x+y,[[('interaction{}'.format(i),copy.deepcopy(self.interaction)),('transformation{}'.format(i),copy.deepcopy(self.transformation))][::(-1 if transform_first else 1)] for i in range(iterations)])))
 
-    def fit(X,y=None):
+    def fit(self,X,y=None):
         self.pipeline.fit(X,y)
         return self
 
