@@ -11,7 +11,7 @@ from functools import reduce
 from SafeTransformer import SafeTransformer
 
 
-class InteractorExtractor(TransformerMixin):
+class InteractionTransformer(TransformerMixin):
     def __init__(self, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False):
         self.maxn=max_train_test_samples
         self.model=untrained_model
@@ -73,7 +73,7 @@ class InteractorExtractor(TransformerMixin):
 class InteractionTransformerExtraction(TransformerMixin):# one application is an iteration
     def __init__(self, iterations=1, transform_first=False, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False, penalty=3, pelt_model='l2', no_changepoint_strategy='median'):
         """https://github.com/ModelOriented/SAFE/blob/master/SafeTransformer/SafeTransformer.py"""
-        self.interaction=InteractorExtractor(untrained_model, max_train_test_samples, mode_interaction_extract, include_self_interactions)
+        self.interaction=InteractionTransformer(untrained_model, max_train_test_samples, mode_interaction_extract, include_self_interactions)
         self.transformation=SafeTransformer(penalty=penalty, pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)
         self.pipeline=Pipeline(list(reduce(lambda x,y:x+y,[[('interaction{}'.format(i),copy.deepcopy(self.interaction)),('transformation{}'.format(i),copy.deepcopy(self.transformation))][::(-1 if transform_first else 1)] for i in range(iterations)])))
 
