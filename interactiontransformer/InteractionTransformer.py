@@ -1,5 +1,5 @@
 from sklearn.base import TransformerMixin
-from kneed import KneeLocator # git clone and pip install
+from kneed import KneeLocator
 import copy
 import shap
 import dask
@@ -15,6 +15,7 @@ from sklearn.pipeline import Pipeline
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import pysnooper
 
 
 
@@ -48,6 +49,7 @@ class InteractionTransformer(TransformerMixin):
         self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions[0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions[1]))).tolist())
         return self
 
+    #@pysnooper.snoop('debug_transformer.log')
     def get_top_interactions(self,shap_vals): # add knee locator
         interaction_matrix=pd.DataFrame(reduce(lambda x,y:x+y,shap_vals)/len(shap_vals),columns=self.features,index=self.features)
         # else:
@@ -67,7 +69,7 @@ class InteractionTransformer(TransformerMixin):
                 self.mode_extract='sqrt'
         if self.mode_extract=='sqrt':
             n_top_interactions=int(np.sqrt(interaction_matrix.shape[0]))
-        else:
+        elif isinstance(self.mode_extract,int):
             n_top_interactions=self.mode_extract
         self.interaction_matrix=interation_matrix_self_interact_removed
         top_overall_interactions=np.unravel_index(np.argsort(interation_matrix_self_interact_removed.values.ravel())[-n_top_interactions:], interaction_matrix.shape)
