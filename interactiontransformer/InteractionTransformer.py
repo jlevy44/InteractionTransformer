@@ -109,11 +109,11 @@ def run_shap(X_train, X_test, model, model_type='tree', explainer_options={}, ge
 
     shap_values = explainer.shap_values(X_test,**get_shap_values_options)
 
-    if model_type=='tree' and best_estimator.__class__.__name__!='XGBClassifier':
+    if model_type=='tree' and model.__class__.__name__!='XGBClassifier':
         shap_values=np.array(shap_values)[1,...]
 
     plt.figure()
-    shap.summary_plot(shap_values, X_test,feature_names=list(X_train), plot_type='bar' if overall else 'dot', max_display=30, matplotlib=True)
+    shap.summary_plot(shap_values, X_test,feature_names=list(X_train), plot_type='bar' if overall else 'dot', max_display=30)
     if savefile:
         plt.savefig(savefile,dpi=300)
     return explainer, shap_values
