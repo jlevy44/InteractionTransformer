@@ -37,9 +37,9 @@ class InteractionTransformer(TransformerMixin):
             scores.append(roc_auc_score(y_test,y_probs))
         X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
         model=copy.deepcopy(self.model).fit(X_train,y_train)
-        if self.maxn<X_train.shape[0]:
+        if self.maxn<X_train.shape[0]-1:
             X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=42,stratify=y_train,shuffle=True,train_size=self.maxn)
-        if self.maxn<X_test.shape[0]:
+        if self.maxn<X_test.shape[0]-1:
             X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=42,stratify=y_test,shuffle=True,train_size=self.maxn)
         explainer = shap.TreeExplainer(model, X_train)
         features=list(X_train)
