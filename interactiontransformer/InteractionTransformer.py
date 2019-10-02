@@ -26,6 +26,7 @@ class InteractionTransformer(TransformerMixin):
         assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
         self.mode_extract=mode_interaction_extract
         self.self_interactions=include_self_interactions
+        #np.random.seed(42)
 
 
     def fit(self, X, y):
@@ -72,6 +73,8 @@ class InteractionTransformer(TransformerMixin):
         elif isinstance(self.mode_extract,int):
             n_top_interactions=self.mode_extract
         self.interaction_matrix=interation_matrix_self_interact_removed
+        self.all_interaction_shap_scores=self.interaction_matrix.where(np.triu(np.ones(self.interaction_matrix.shape),k=1 if not self.self_interactions else 0).astype(np.bool)).stack().reset_index()
+        self.all_interaction_shap_scores.columns=['feature_1','feature_2', 'shap_interaction_score']
         top_overall_interactions=np.unravel_index(np.argsort(interation_matrix_self_interact_removed.values.ravel())[-n_top_interactions:], interaction_matrix.shape)
         top_overall_interactions=[tuple(sorted([self.features[i],self.features[j]]))+(round(interation_matrix_self_interact_removed.iloc[i,j],6),) for i,j in np.array(top_overall_interactions).T.tolist()]
         true_top_interactions=pd.DataFrame(top_overall_interactions).drop_duplicates()
