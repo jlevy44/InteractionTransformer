@@ -12,7 +12,7 @@ PACKAGES=['scikit-learn',
           'kneed',
           'imbalanced-learn',
           'pysnooper',
-          'matplotlib']
+          'matplotlib>=3.0.0']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
