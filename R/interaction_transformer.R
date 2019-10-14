@@ -19,7 +19,7 @@ interaction.transform <- function(transformer, X) {
 }
 
 run.shap <- function(X.train, X.test, model, model_type='tree', savefile='shap.output.png') {
-  interactiontransformer$InteractionTransformer$run_shap(run_shap(X_train, X_test, model, model_type=model_type,savefile=savefile)
+  interactiontransformer$InteractionTransformer$run_shap(X_train, X_test, model, model_type=model_type,savefile=savefile)
 }
 
 get.top.interactions <- function(transformer) {
