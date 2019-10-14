@@ -1,14 +1,31 @@
 library(reticulate)
+
 install_transformer <- function(custom.path='interactiontransformer',pip=T) {
   py_install(custom.path,pip=pip)
 }
+
 detect.conda <- function(conda.env='py36'){
   reticulate:::py_install_method_detect(conda.env)
 }
 
-interactiontransformer<-import('interactiontransformer')
+source.python <- function(python.dir='/usr/local/bin/python3'){
+  reticulate:::use_python(python.dir)
+}
 
-interaction.fit <- function(X.train,y.train, untrained_model=interactiontransformer$InteractionTransformer$BalancedRandomForestClassifier()) {
+import_transformer <- function() {
+  interactiontransformer<-import('interactiontransformer')
+}
+
+train.test.split<- function(X,y) {
+  train_test_splits<-interactiontransformer$InteractionTransformer$train_test_split(X,y,stratify=y)
+  train_test_splits<-list(X.train=train_test_splits[1],X.test=train_test_splits[2],y.train=train_test_splits[3],y.test=train_test_splits[4])
+  return(train_test_splits)
+}
+
+interaction.fit <- function(X.train,y.train, untrained_model='default') {
+  if (untrained_model=='default') {
+    untrained_model<-interactiontransformer$InteractionTransformer$BalancedRandomForestClassifier(random_state = 42)
+  }
   transformer <- interactiontransformer$InteractionTransformer$InteractionTransformer(untrained_model = model)
   transformer<-interaction.transform$fit(X.train,y.train)
   return(transformer)
