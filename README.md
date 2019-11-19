@@ -13,7 +13,7 @@ install.packages("interactiontransformer")
 ## Temporary Install Instructions
 
 ```sh
-git clone
+git clone https://github.com/jlevy44/InteractionTransformer
 cd InteractionTransformer
 pip install .
 R
