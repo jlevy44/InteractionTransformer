@@ -15,12 +15,15 @@ install.packages("interactiontransformer")
 ```sh
 git clone https://github.com/jlevy44/InteractionTransformer
 cd InteractionTransformer
-pip install .
+pip install . # make sure conda is running
+
 R
 install.packages("reticulate")
-cd R_packages
+q()
+
+cd R_package
 sh install_interactiontransformer.sh
-# open R_package/InteractionTransformerRDemo.Rmd for further instruction
+open InteractionTransformerRDemo.Rmd
 ```
 
 ## Author
@@ -28,11 +31,3 @@ sh install_interactiontransformer.sh
 👤 **Joshua Levy**
 
 * Github: [@jlevy44](https://github.com/jlevy44)
-
-## Show your support
-
-Give a ⭐️ if this project helped you!
-
-
-***
-_This README was generated with ❤️ by [readme-md-generator](https://github.com/kefranabg/readme-md-generator)_
