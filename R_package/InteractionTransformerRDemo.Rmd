@@ -1,0 +1,88 @@
+---
+title: "InteractionTransformRDemo"
+author: "Joshua Levy"
+date: "11/18/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+```
+
+## Select python path of conda environment to input in next command
+```{r}
+reticulate:::conda_list(conda = "auto")
+```
+
+## Make sure interaction transformer has been installed into your conda environment
+Else, install using the install_transformer command.
+
+## Load package while sourcing python from conda environment
+```{r}
+library(interactiontransformer)
+source.python('/anaconda2/envs/py36/bin/python')
+interactiontransformer<-import_transformer()
+```
+
+
+## Loading Test Data
+
+```{r}
+df<-read.csv("../test_data/epistasis.test.csv")
+X<-df[,-(ncol(df))]
+y<-as.data.frame(df[,ncol(df)])
+```
+
+## Train test split
+
+```{r}
+train.test.splits<-train.test.split(X,y)
+```
+
+## Find the top interactions in the training set
+
+```{r}
+interaction.transformer<-interaction.fit(train.test.splits$X.train,train.test.splits$y.train,max_train_test_samples = 1000L, mode_interaction_extract = sqrt(ncol(train.test.splits$X.train)))
+# reticulate:::py_capture_output()
+```
+## Transform design matrices for training and test sets
+
+```{r}
+X.train2<-interaction.transform(interaction.transformer,train.test.splits$X.train)
+X.test2<-interaction.transform(interaction.transformer,train.test.splits$X.test)
+```
+
+## Extract top ranked interactions via SHAP
+
+```{r}
+interaction.transformer$all_interaction_shap_scores[order(-interaction.transformer$all_interaction_shap_scores[3]),][1:10,]
+```
+
+```{r}
+sklearn<-reticulate:::import("sklearn")
+```
+
+## Fit Models and then get AUROC
+
+```{r}
+lr.model<-sklearn$linear_model$LogisticRegression(random_state=42L,class_weight='balanced')$fit(train.test.splits$X.train,train.test.splits$y.train)
+lr2.model<-sklearn$linear_model$LogisticRegression(random_state=42L,class_weight='balanced')$fit(X.train2,train.test.splits$y.train)
+rf.model<-interactiontransformer$InteractionTransformer$BalancedRandomForestClassifier(random_state=42L)$fit(train.test.splits$X.train,train.test.splits$y.train)
+
+sklearn$metrics$roc_auc_score(train.test.splits$y.test,lr.model$predict_proba(train.test.splits$X.test)[,2])
+sklearn$metrics$roc_auc_score(train.test.splits$y.test,lr2.model$predict_proba(X.test2)[,2])
+sklearn$metrics$roc_auc_score(train.test.splits$y.test,rf.model$predict_proba(train.test.splits$X.test)[,2])
+```
+
+## Collect SHAP Feature Importances
+
+```{r}
+shap.results.lr<-run.shap(train.test.splits$X.train, train.test.splits$X.test, lr.model, model_type='linear', savefile='../test_data/epistasis.lr.shap.png')
+shap.results.rf<-run.shap(train.test.splits$X.train, train.test.splits$X.test, rf.model, model_type='tree', savefile='../test_data/epistasis.rf.shap.png')
+shap.results.lr2<-run.shap(X.train2, X.test2, lr2.model, model_type='linear', savefile='../test_data/epistasis.lr2.shap.png')
+```
+
+
+
+
+

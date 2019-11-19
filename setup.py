@@ -12,7 +12,8 @@ PACKAGES=['scikit-learn',
           'kneed',
           'imbalanced-learn',
           'pysnooper',
-          'matplotlib>=3.0.0']
+          'matplotlib>=3.0.0',
+          'openml==0.9.0']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
@@ -29,11 +30,6 @@ setup(name='interactiontransformer',
       author='Joshua Levy',
       author_email='joshualevy44@berkeley.edu',
       license='MIT',
-      # scripts=[], # 'bin/update_kneed'
-      #cmdclass={'install': CustomInstallCommand},
-      # entry_points={
-      #       'console_scripts':[]
-      # },
       long_description=long_description,
       long_description_content_type='text/markdown',
       packages=['interactiontransformer'],

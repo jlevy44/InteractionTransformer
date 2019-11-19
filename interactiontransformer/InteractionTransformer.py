@@ -17,20 +17,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pysnooper
 
-
-
 class InteractionTransformer(TransformerMixin):
-    def __init__(self, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False):
+    def __init__(self, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False, random_state=42, cv_splits=5):
         self.maxn=max_train_test_samples
         self.model=untrained_model
         assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
         self.mode_extract=mode_interaction_extract
         self.self_interactions=include_self_interactions
-        #np.random.seed(42)
-
+        self.random_state=random_state
+        self.cv_splits=5
 
     def fit(self, X, y):
-        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=self.cv_splits, shuffle=True, random_state=self.random_state)
         splits=[(X.iloc[train, :], X.iloc[test, :], y.iloc[train], y.iloc[test]) for train, test in cv.split(X,y)]
         scores=[]
         for i,(X_train, X_test, y_train, y_test) in enumerate(splits):
@@ -39,22 +37,20 @@ class InteractionTransformer(TransformerMixin):
         X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
         model=copy.deepcopy(self.model).fit(X_train,y_train)
         if self.maxn<X_train.shape[0]-1:
-            X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=42,stratify=y_train,shuffle=True,train_size=self.maxn)
+            X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=y_train,shuffle=True,train_size=self.maxn)
         if self.maxn<X_test.shape[0]-1:
-            X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=42,stratify=y_test,shuffle=True,train_size=self.maxn)
+            X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=y_test,shuffle=True,train_size=self.maxn)
         explainer = shap.TreeExplainer(model, X_train)
         features=list(X_train)
         self.features=features
         shap_vals=dask.compute(*[dask.delayed(lambda x: np.abs(explainer.shap_interaction_values(x)).sum(0))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler='processes')
         true_top_interactions=self.get_top_interactions(shap_vals)
-        self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions[0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions[1]))).tolist())
+        #print(true_top_interactions)
+        self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
         return self
 
-    #@pysnooper.snoop('debug_transformer.log')
-    def get_top_interactions(self,shap_vals): # add knee locator
+    def get_top_interactions(self,shap_vals):
         interaction_matrix=pd.DataFrame(reduce(lambda x,y:x+y,shap_vals)/len(shap_vals),columns=self.features,index=self.features)
-        # else:
-        #     n_top_interactions=int(fraction_interactions*interaction_matrix.shape[0]*(interaction_matrix.shape[0]-1)/2)
         interation_matrix_self_interact_removed=interaction_matrix.copy()
         if not self.self_interactions:
             for i in np.arange(interaction_matrix.shape[0]):
@@ -75,10 +71,11 @@ class InteractionTransformer(TransformerMixin):
         self.interaction_matrix=interation_matrix_self_interact_removed
         self.all_interaction_shap_scores=self.interaction_matrix.where(np.triu(np.ones(self.interaction_matrix.shape),k=1 if not self.self_interactions else 0).astype(np.bool)).stack().reset_index()
         self.all_interaction_shap_scores.columns=['feature_1','feature_2', 'shap_interaction_score']
-        top_overall_interactions=np.unravel_index(np.argsort(interation_matrix_self_interact_removed.values.ravel())[-n_top_interactions:], interaction_matrix.shape)
-        top_overall_interactions=[tuple(sorted([self.features[i],self.features[j]]))+(round(interation_matrix_self_interact_removed.iloc[i,j],6),) for i,j in np.array(top_overall_interactions).T.tolist()]
-        true_top_interactions=pd.DataFrame(top_overall_interactions).drop_duplicates()
-        return true_top_interactions
+        self.all_interaction_shap_scores=self.all_interaction_shap_scores.sort_values('shap_interaction_score',ascending=False)
+        # top_overall_interactions=np.unravel_index(np.argsort(interation_matrix_self_interact_removed.values.ravel())[-n_top_interactions:], interaction_matrix.shape)
+        # top_overall_interactions=[tuple(sorted([self.features[i],self.features[j]]))+(round(interation_matrix_self_interact_removed.iloc[i,j],6),) for i,j in np.array(top_overall_interactions).T.tolist()]
+        # true_top_interactions=pd.DataFrame(top_overall_interactions).drop_duplicates()
+        return self.all_interaction_shap_scores.iloc[:n_top_interactions,:]#true_top_interactions
 
     def transform(self, X):
         design_matrix=patsy.dmatrix(self.design_terms, data=X, return_type='dataframe')
@@ -95,7 +92,7 @@ class InteractionTransformerExtraction(TransformerMixin):# one application is an
         for i in range(iterations):
             steps.extend([['interaction{}'.format(i),InteractionTransformer(copy.deepcopy(untrained_model), max_train_test_samples, mode_interaction_extract, include_self_interactions)],
                           ['transformer{}'.format(i),SafeTransformer(penalty=penalty, model=copy.deepcopy(untrained_model), pelt_model=pelt_model, no_changepoint_strategy=no_changepoint_strategy)]])
-        self.pipeline=Pipeline(steps)#list(reduce(lambda x,y:x+y,[[('interaction{}'.format(i),copy.deepcopy(self.interaction)),('transformation{}'.format(i),copy.deepcopy(self.transformation))][::(-1 if transform_first else 1)] for i in range(iterations)])))
+        self.pipeline=Pipeline(steps)
 
     def fit(self,X,y=None):
         self.pipeline.fit(X,y)
@@ -105,8 +102,6 @@ class InteractionTransformerExtraction(TransformerMixin):# one application is an
         return self.pipeline.transform(X)
 
 def run_shap(X_train, X_test, model, model_type='tree', explainer_options={}, get_shap_values_options={}, overall=False, savefile=''):
-
-    #shap.initjs()
 
     shap_model={'tree':shap.TreeExplainer,'kernel':shap.KernelExplainer,'linear':shap.LinearExplainer}[model_type]
 
