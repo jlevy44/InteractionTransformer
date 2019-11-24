@@ -1,7 +1,9 @@
-# Welcome to InteractionTransformer 👋
+# Welcome to InteractionTransformer
 ![Version](https://img.shields.io/badge/version-0.1-blue.svg?cacheSeconds=2592000)
 
 > Extract meaningful interactions from machine learning models to obtain machine-learning performance with statistical model interpretability.
+
+Please see our wiki for more information on setting up and running this package: https://github.com/jlevy44/InteractionTransformer/wiki
 
 ## Install
 
