@@ -5,6 +5,12 @@
 
 Please see our wiki for more information on setting up and running this package: https://github.com/jlevy44/InteractionTransformer/wiki
 
+**QUICKSTART DEMOS can be found here:**
+
+Python: https://github.com/jlevy44/InteractionTransformer/blob/master/demos/InteractionTransformerPythonDemo.ipynb
+
+R: https://github.com/jlevy44/InteractionTransformer/blob/master/demos/InteractionTransformerRDemo.Rmd
+
 ## Install
 
 ```sh
