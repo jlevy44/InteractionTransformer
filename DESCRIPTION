@@ -1,0 +1,17 @@
+Package: interactiontransformer
+Type: Package
+Title: Extract meaningful interactions from machine learning models to obtain machine-learning performance with statistical model interpretability.
+Version: 0.1.0
+Author: Joshua Levy
+Authors@R: person("Joshua", "Levy", email="joshua.j.levy.gr@dartmouth.edu", role=c('aut','cre'))
+Description: This statistical and machine learning software package was designed in mind for those seeking to supplement traditional statistical model-building capabilities. While machine learning techniques have demonstrated the capability to outperform traditional statistical approaches through a set of model-building computational heuristics, they are often less interpretable than their traditional counterparts and do not perform well in a linear solution space. Model interpretability approaches such as SHAP (https://github.com/slundberg/shap) have provided model agnostic means to explain predictions, still more often than not important interactions and transformations obtained through the model building approach are obfuscated when interpreting the machine learning model results via SHAP.
+    Here, we utilize SHAP interaction scores to provide a convenient means from which too add interactions to your design matrix, and offer R and Python solutions for performing these analyses. This software package does not seek to serve as the ultimate model building approach, but certainly supplements linear model building strategies versus stepwise regression techniques, allowing for traditional statistical model interpretability at machine learning performance. Please check out our manuscript for more information.
+    What our package does: extract interactions in the data and add them to your design matrix. This is particularly useful when the machine learning approach outperforms the traditional modeling approach.
+    What our package does not do: extract transformations in the data to add them to the design matrix. For those capabilities, please see the SAFE Transformer package (https://github.com/ModelOriented/SAFE). Our package does have an experimental feature that will iteratively call InteractionTransformer and SAFETransformer to develop multi-layer interactions/transformation models, but this is still under development.
+License: MIT
+Depends: R (>= 3.5.0)
+Encoding: UTF-8
+LazyData: true
+Imports:
+    reticulate
+RoxygenNote: 7.0.2

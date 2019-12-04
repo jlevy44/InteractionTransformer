@@ -13,12 +13,18 @@ R: https://github.com/jlevy44/InteractionTransformer/blob/master/demos/Interacti
 
 ## Install
 
+**Python:**
 ```sh
 pip install interactiontransformer
-install.packages("interactiontransformer")
 ```
 
-## Temporary Install Instructions
+**R**
+First, install the python pip package. Then:
+```R
+devtools::install_github("jlevy44/interactiontransformer")
+```
+
+## Old Temporary Install Instructions
 
 ```sh
 git clone https://github.com/jlevy44/InteractionTransformer
@@ -32,6 +38,9 @@ q()
 cd R_package
 sh install_interactiontransformer.sh
 open InteractionTransformerRDemo.Rmd
+```
+```R
+install.packages("interactiontransformer")
 ```
 
 ## Author
