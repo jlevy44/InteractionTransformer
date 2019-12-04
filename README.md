@@ -18,7 +18,7 @@ R: https://github.com/jlevy44/InteractionTransformer/blob/master/demos/Interacti
 pip install interactiontransformer
 ```
 
-**R**
+**R**  
 First, install the python pip package. Then:
 ```R
 devtools::install_github("jlevy44/interactiontransformer")
