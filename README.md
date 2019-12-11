@@ -14,6 +14,13 @@ R: https://github.com/jlevy44/InteractionTransformer/blob/master/demos/Interacti
 ## Install
 
 **Python:**
+We recommend installing using anaconda (https://www.anaconda.com/distribution/).
+First, install anaconda. Then, run:
+```sh
+conda create -n interaction_transform_environ python=3.7
+conda activate interaction_transform_environ
+```
+Finally:
 ```sh
 pip install interactiontransformer
 ```
@@ -23,24 +30,18 @@ First, install the python pip package. Then:
 ```R
 devtools::install_github("jlevy44/interactiontransformer")
 ```
+Or:
+```R
+library(devtools)
+install_github("jlevy44/interactiontransformer")
+```
 
-## Old Temporary Install Instructions
+## Alternative Python Install Instructions
 
 ```sh
 git clone https://github.com/jlevy44/InteractionTransformer
 cd InteractionTransformer
 pip install . # make sure conda is running
-
-R
-install.packages("reticulate")
-q()
-
-cd R_package
-sh install_interactiontransformer.sh
-open InteractionTransformerRDemo.Rmd
-```
-```R
-install.packages("interactiontransformer")
 ```
 
 ## Author
