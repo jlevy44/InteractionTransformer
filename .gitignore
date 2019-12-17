@@ -3,3 +3,14 @@
 .RData
 .Ruserdata
 .Rbuildignore
+build/lib/interactiontransformer/__init__.py
+build/lib/interactiontransformer/InteractionTransformer.py
+build/lib/interactiontransformer/manuscript.scripts.py
+build/lib/interactiontransformer/utils.py
+dist/interactiontransformer-0.1-py3-none-any.whl
+dist/interactiontransformer-0.1.tar.gz
+interactiontransformer.egg-info/dependency_links.txt
+interactiontransformer.egg-info/PKG-INFO
+interactiontransformer.egg-info/requires.txt
+interactiontransformer.egg-info/SOURCES.txt
+interactiontransformer.egg-info/top_level.txt
