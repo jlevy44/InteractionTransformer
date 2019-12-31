@@ -61,7 +61,8 @@ class InteractionTransformer(TransformerMixin):
 						cv_splits=5,
 						cv_scoring='auc',
 						dask_scheduler='processes',
-						verbose=False):
+						verbose=False,
+						cv_workers=1):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
@@ -80,6 +81,23 @@ class InteractionTransformer(TransformerMixin):
 		self.dask_scheduler=dask_scheduler
 		self.feature_perturbation='tree_path_dependent'
 		self.verbose=verbose
+		self.cv_workers=cv_workers
+
+	@staticmethod
+	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
+		tmp_model=tmp_model.fit(X_train,y_train)
+		if 'predict_proba' in dir(tmp_model):
+			y_pred=tmp_model.predict_proba(X_test)
+			if self.cv_scoring=='auc':
+				y_pred=y_pred[:,-1]
+				predict_mode='binary'
+			else:
+				y_pred=np.argmax(y_pred,axis=1)
+				predict_mode='multiclass'
+		else:
+			y_pred=tmp_model.predict(X_test)
+			predict_mode='regression'
+		return scoring_fn(y_test,y_pred)
 
 	def fit(self, X, y):
 		"""Generate design matrix acquired from using SHAP on tree model.
@@ -101,19 +119,9 @@ class InteractionTransformer(TransformerMixin):
 		splits=[(X.iloc[train, :], X.iloc[test, :], y.iloc[train], y.iloc[test]) for train, test in cv.split(X,y)]
 		scores=[]
 		for i,(X_train, X_test, y_train, y_test) in enumerate(splits):
-			tmp_model=copy.deepcopy(self.model).fit(X_train,y_train)
-			if 'predict_proba' in dir(tmp_model):
-				y_pred=tmp_model.predict_proba(X_test)
-				if self.cv_scoring=='auc':
-					y_pred=y_pred[:,-1]
-					predict_mode='binary'
-				else:
-					y_pred=np.argmax(y_pred,axis=1)
-					predict_mode='multiclass'
-			else:
-				y_pred=tmp_model.predict(X_test)
-				predict_mode='regression'
-			scores.append(self.scoring_fn[self.cv_scoring](y_test,y_pred))
+			scores.append(dask.delayed(InteractionTransformer.return_cv_score)(X_train, X_test, y_train, y_test,copy.deepcopy(self.model),self.scoring_fn[self.cv_scoring]))
+		with ProgressBar() if self.verbose else nullcontext():
+			scores=dask.compute(*scores,scheduler=('processes' if self.cv_workers>1 else 'single-threaded'),num_workers=self.cv_workers)
 		X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
 		model=copy.deepcopy(self.model).fit(X_train,y_train)
 		if self.maxn<X_train.shape[0]-1:
