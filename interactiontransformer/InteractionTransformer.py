@@ -66,7 +66,7 @@ class InteractionTransformer(TransformerMixin):
 						cv_scoring='auc',
 						dask_scheduler='processes',
 						verbose=False,
-						cv_workers=1):
+						num_workers=1):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
@@ -85,7 +85,7 @@ class InteractionTransformer(TransformerMixin):
 		self.dask_scheduler=dask_scheduler
 		self.feature_perturbation='tree_path_dependent'
 		self.verbose=verbose
-		self.cv_workers=cv_workers
+		self.num_workers=num_workers
 
 	@staticmethod
 	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
@@ -125,7 +125,7 @@ class InteractionTransformer(TransformerMixin):
 		for i,(X_train, X_test, y_train, y_test) in enumerate(splits):
 			scores.append(dask.delayed(InteractionTransformer.return_cv_score)(X_train, X_test, y_train, y_test,copy.deepcopy(self.model),self.scoring_fn[self.cv_scoring]))
 		with ProgressBar() if self.verbose else nullcontext():
-			scores=dask.compute(*scores,scheduler=('processes' if self.cv_workers>1 else 'single-threaded'),num_workers=self.cv_workers)
+			scores=dask.compute(*scores,scheduler=('processes' if self.num_workers>1 else 'single-threaded'),num_workers=self.num_workers)
 		X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
 		model=copy.deepcopy(self.model).fit(X_train,y_train)
 		if self.maxn<X_train.shape[0]-1:
@@ -137,7 +137,7 @@ class InteractionTransformer(TransformerMixin):
 		self.features=features
 		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
-			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
+			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
