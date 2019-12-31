@@ -68,7 +68,7 @@ class InteractionTransformer(TransformerMixin):
 		self.cv_splits=5
 		self.cv_scoring=cv_scoring
 		self.scoring_fn={'auc':roc_auc_score,
-						'f1':f1_score(y_true,y_pred,average='macro'),
+						'f1':lambda y_true,y_pred: f1_score(y_true,y_pred,average='macro'),
 						'mae':mean_absolute_error,
 						'r2':r2_score,
 						'acc':accuracy_score}
