@@ -3,6 +3,7 @@ from kneed import KneeLocator
 import copy
 import shap
 import dask
+from dask.diagnostics import ProgressBar
 import numpy as np, pandas as pd
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, r2_score, mean_absolute_error
 from sklearn.model_selection import StratifiedKFold
@@ -14,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 import matplotlib
 matplotlib.use('Agg')
+from contextlib import nullcontext
 import matplotlib.pyplot as plt
 import pysnooper
 
@@ -58,7 +60,8 @@ class InteractionTransformer(TransformerMixin):
 						random_state=42,
 						cv_splits=5,
 						cv_scoring='auc',
-						dask_scheduler='processes'):
+						dask_scheduler='processes',
+						verbose=False):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
@@ -76,6 +79,7 @@ class InteractionTransformer(TransformerMixin):
 						'acc':accuracy_score}
 		self.dask_scheduler=dask_scheduler
 		self.feature_perturbation='tree_path_dependent'
+		self.verbose=verbose
 
 	def fit(self, X, y):
 		"""Generate design matrix acquired from using SHAP on tree model.
@@ -120,7 +124,8 @@ class InteractionTransformer(TransformerMixin):
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x
-		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:].values.reshape(1,-1)) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
+		with ProgressBar() if self.verbose else nullcontext():
+			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:].values.reshape(1,-1)) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
