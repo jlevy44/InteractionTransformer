@@ -66,7 +66,8 @@ class InteractionTransformer(TransformerMixin):
 						cv_scoring='auc',
 						dask_scheduler='processes',
 						verbose=False,
-						num_workers=1):
+						num_workers=1,
+						tree_limit=None):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
@@ -86,6 +87,7 @@ class InteractionTransformer(TransformerMixin):
 		self.feature_perturbation='tree_path_dependent'
 		self.verbose=verbose
 		self.num_workers=num_workers
+		self.tree_limit=tree_limit
 
 	@staticmethod
 	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
@@ -137,7 +139,7 @@ class InteractionTransformer(TransformerMixin):
 		self.features=features
 		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
-			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
+			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
