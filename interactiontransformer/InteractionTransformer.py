@@ -4,7 +4,7 @@ import copy
 import shap
 import dask
 import numpy as np, pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, r2_score, mean_absolute_error
 from sklearn.model_selection import StratifiedKFold
 import patsy
 from functools import reduce
@@ -51,14 +51,27 @@ class InteractionTransformer(TransformerMixin):
 	cv_splits
 
 	"""
-	def __init__(self, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40), max_train_test_samples=100, mode_interaction_extract='knee', include_self_interactions=False, random_state=42, cv_splits=5):
+	def __init__(self, untrained_model=BalancedRandomForestClassifier(random_state=42,n_jobs=40),
+						max_train_test_samples=100,
+						mode_interaction_extract='knee',
+						include_self_interactions=False,
+						random_state=42,
+						cv_splits=5,
+						cv_scoring='auc'):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
+		assert cv_scoring in ['auc', 'acc', 'f1', 'r2', 'mae']
 		self.mode_extract=mode_interaction_extract
 		self.self_interactions=include_self_interactions
 		self.random_state=random_state
 		self.cv_splits=5
+		self.cv_scoring=cv_scoring
+		self.scoring_fn={'auc':roc_auc_score,
+						'f1':f1_score(y_true,y_pred,average='macro'),
+						'mae':mean_absolute_error,
+						'r2':r2_score,
+						'acc':accuracy_score}
 
 	def fit(self, X, y):
 		"""Generate design matrix acquired from using SHAP on tree model.
@@ -80,8 +93,19 @@ class InteractionTransformer(TransformerMixin):
 		splits=[(X.iloc[train, :], X.iloc[test, :], y.iloc[train], y.iloc[test]) for train, test in cv.split(X,y)]
 		scores=[]
 		for i,(X_train, X_test, y_train, y_test) in enumerate(splits):
-			y_probs=copy.deepcopy(self.model).fit(X_train,y_train).predict_proba(X_test)[:,-1]
-			scores.append(roc_auc_score(y_test,y_probs))
+			tmp_model=copy.deepcopy(self.model).fit(X_train,y_train)
+			if 'predict_proba' in dir(tmp_model):
+				y_pred=tmp_model.predict_proba(X_test)
+				if self.cv_scoring=='auc':
+					y_pred=y_pred[:,-1]
+					predict_mode='binary'
+				else:
+					y_pred=np.argmax(y_pred,axis=1)
+					predict_mode='multiclass'
+			else:
+				y_pred=tmp_model.predict(X_test)
+				predict_mode='regression'
+			scores.append(self.scoring_fn[self.cv_scoring](y_test,y_pred))
 		X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
 		model=copy.deepcopy(self.model).fit(X_train,y_train)
 		if self.maxn<X_train.shape[0]-1:
@@ -91,7 +115,8 @@ class InteractionTransformer(TransformerMixin):
 		explainer = shap.TreeExplainer(model, X_train)
 		features=list(X_train)
 		self.features=features
-		shap_vals=dask.compute(*[dask.delayed(lambda x: np.abs(explainer.shap_interaction_values(x)).sum(0))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler='processes')
+		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x
+		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler='processes')
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
