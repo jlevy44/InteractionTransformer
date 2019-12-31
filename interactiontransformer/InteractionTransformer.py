@@ -132,12 +132,12 @@ class InteractionTransformer(TransformerMixin):
 			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=y_train,shuffle=True,train_size=self.maxn)
 		if self.maxn<X_test.shape[0]-1:
 			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=y_test,shuffle=True,train_size=self.maxn)
-		explainer = shap.TreeExplainer(model, X_train.values, feature_perturbation=self.feature_perturbation)
+		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
-			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:].values.reshape(1,-1)) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
+			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
