@@ -135,7 +135,7 @@ class InteractionTransformer(TransformerMixin):
 		explainer = shap.TreeExplainer(model, X_train.values, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
-		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x
+		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
 			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:].values.reshape(1,-1)) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
 		true_top_interactions=self.get_top_interactions(shap_vals)
