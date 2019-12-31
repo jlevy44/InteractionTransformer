@@ -120,7 +120,7 @@ class InteractionTransformer(TransformerMixin):
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x
-		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
+		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:].values) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
