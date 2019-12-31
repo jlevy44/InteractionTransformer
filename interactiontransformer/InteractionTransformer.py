@@ -137,11 +137,11 @@ class InteractionTransformer(TransformerMixin):
 		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
-		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
+		to_sum=lambda x: x.sum(0)[0] if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
 			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
-		import pickle
-		pickle.dump(shap_vals,open('shap_test.pkl','wb'))
+		# import pickle
+		# pickle.dump(shap_vals,open('shap_test.pkl','wb'))
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
