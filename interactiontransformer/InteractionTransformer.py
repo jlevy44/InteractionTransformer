@@ -129,17 +129,17 @@ class InteractionTransformer(TransformerMixin):
 		with ProgressBar() if self.verbose else nullcontext():
 			scores=dask.compute(*scores,scheduler=('processes' if self.num_workers>1 else 'single-threaded'),num_workers=self.num_workers)
 		X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
-		model=copy.deepcopy(self.model).fit(X_train,y_train)
+		model=copy.deepcopy(self.model).fit(X_train.values,y_train)
 		if self.maxn<X_train.shape[0]-1:
 			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=y_train,shuffle=True,train_size=self.maxn)
 		if self.maxn<X_test.shape[0]-1:
 			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=y_test,shuffle=True,train_size=self.maxn)
-		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
+		explainer = shap.TreeExplainer(model, X_train.values, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
-			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
+			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(X_test.iloc[i,:].values.reshape(1,-1)) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)# pd.DataFrame(X_test.iloc[i,:]).T
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
