@@ -15,9 +15,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 import matplotlib
 matplotlib.use('Agg')
-from contextlib import nullcontext
 import matplotlib.pyplot as plt
 import pysnooper
+from contextlib import contextmanager
+
+@contextmanager
+def nullcontext(enter_result=None):
+    yield enter_result
 
 class InteractionTransformer(TransformerMixin):
 	"""Transformer object that will automatically extract interaction design terms from your data.
