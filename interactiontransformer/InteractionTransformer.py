@@ -92,7 +92,7 @@ class InteractionTransformer(TransformerMixin):
 		tmp_model=tmp_model.fit(X_train,y_train)
 		if 'predict_proba' in dir(tmp_model):
 			y_pred=tmp_model.predict_proba(X_test)
-			if self.cv_scoring=='auc':
+			if scoring_fn==roc_auc_score:
 				y_pred=y_pred[:,-1]
 				predict_mode='binary'
 			else:
