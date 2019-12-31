@@ -57,11 +57,13 @@ class InteractionTransformer(TransformerMixin):
 						include_self_interactions=False,
 						random_state=42,
 						cv_splits=5,
-						cv_scoring='auc'):
+						cv_scoring='auc',
+						dask_scheduler='processes'):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
 		assert cv_scoring in ['auc', 'acc', 'f1', 'r2', 'mae']
+		assert dask_scheduler in ['threading','processes']
 		self.mode_extract=mode_interaction_extract
 		self.self_interactions=include_self_interactions
 		self.random_state=random_state
@@ -72,6 +74,7 @@ class InteractionTransformer(TransformerMixin):
 						'mae':mean_absolute_error,
 						'r2':r2_score,
 						'acc':accuracy_score}
+		self.dask_scheduler=dask_scheduler
 
 	def fit(self, X, y):
 		"""Generate design matrix acquired from using SHAP on tree model.
@@ -116,7 +119,7 @@ class InteractionTransformer(TransformerMixin):
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x
-		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler='processes')
+		shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x))))(X_test.iloc[i,:]) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler)
 		true_top_interactions=self.get_top_interactions(shap_vals)
 		#print(true_top_interactions)
 		self.design_terms='+'.join((np.core.defchararray.add(np.vectorize(lambda x: "Q('{}')*".format(x))(true_top_interactions.iloc[:,0]),np.vectorize(lambda x: "Q('{}')".format(x))(true_top_interactions.iloc[:,1]))).tolist())
