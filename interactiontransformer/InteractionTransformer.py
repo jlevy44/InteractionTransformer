@@ -75,6 +75,7 @@ class InteractionTransformer(TransformerMixin):
 						'r2':r2_score,
 						'acc':accuracy_score}
 		self.dask_scheduler=dask_scheduler
+		self.feature_perturbation='tree_path_dependent'
 
 	def fit(self, X, y):
 		"""Generate design matrix acquired from using SHAP on tree model.
@@ -115,7 +116,7 @@ class InteractionTransformer(TransformerMixin):
 			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=y_train,shuffle=True,train_size=self.maxn)
 		if self.maxn<X_test.shape[0]-1:
 			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=y_test,shuffle=True,train_size=self.maxn)
-		explainer = shap.TreeExplainer(model, X_train)
+		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0) if predict_mode!='regression' else x

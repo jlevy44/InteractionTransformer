@@ -2,16 +2,16 @@ from setuptools import setup
 from setuptools.command.install import install
 import subprocess
 import os
-PACKAGES=['scikit-learn',
-          'shap',
-          'dask',
-          'patsy',
-          'safe-transformer',
-          'numpy',
-          'pandas',
-          'kneed',
-          'imbalanced-learn',
-          'pysnooper',
+PACKAGES=['scikit-learn>=0.22',
+          'shap>=0.34.0',
+          'dask>=2.9.1',
+          'patsy>=1.16.4',
+          'safe-transformer>=0.0.5',
+          'numpy>=0.16.4',
+          'pandas>=0.25.3',
+          'kneed>=0.5.1',
+          'imbalanced-learn>=0.6.1',
+          'pysnooper>=0.3.0',
           'matplotlib>=3.0.0',
           'openml==0.9.0']
 
@@ -24,7 +24,7 @@ class CustomInstallCommand(install):
         self.do_egg_install()
 
 setup(name='interactiontransformer',
-      version='0.1',
+      version='0.1.1',
       description='Extract interactions from complex model using SHAP and add to linear model..',
       url='https://github.com/jlevy44/InteractionExtractor',
       author='Joshua Levy',
