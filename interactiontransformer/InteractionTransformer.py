@@ -6,7 +6,7 @@ import dask
 from dask.diagnostics import ProgressBar
 import numpy as np, pandas as pd
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, r2_score, mean_absolute_error
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold
 import patsy
 from functools import reduce
 from SafeTransformer import SafeTransformer
@@ -76,7 +76,7 @@ class InteractionTransformer(TransformerMixin):
 		self.mode_extract=mode_interaction_extract
 		self.self_interactions=include_self_interactions
 		self.random_state=random_state
-		self.cv_splits=5
+		self.cv_splits=cv_splits
 		self.cv_scoring=cv_scoring
 		self.scoring_fn={'auc':roc_auc_score,
 						'f1':lambda y_true,y_pred: f1_score(y_true,y_pred,average='macro'),
@@ -88,6 +88,7 @@ class InteractionTransformer(TransformerMixin):
 		self.verbose=verbose
 		self.num_workers=num_workers
 		self.tree_limit=tree_limit
+		self.is_regression=(self.cv_scoring not in ['auc', 'acc', 'f1'])
 
 	@staticmethod
 	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
@@ -121,7 +122,7 @@ class InteractionTransformer(TransformerMixin):
 			Transformer with design terms.
 
 		"""
-		cv = StratifiedKFold(n_splits=self.cv_splits, shuffle=True, random_state=self.random_state)
+		cv = (StratifiedKFold if not self.is_regression else KFold)(n_splits=self.cv_splits, shuffle=True, random_state=self.random_state)
 		splits=[(X.iloc[train, :], X.iloc[test, :], y.iloc[train], y.iloc[test]) for train, test in cv.split(X,y)]
 		scores=[]
 		for i,(X_train, X_test, y_train, y_test) in enumerate(splits):
@@ -131,9 +132,9 @@ class InteractionTransformer(TransformerMixin):
 		X_train, X_test, y_train, y_test = splits[np.argmax(np.array(scores))]
 		model=copy.deepcopy(self.model).fit(X_train,y_train)
 		if self.maxn<X_train.shape[0]-1:
-			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=y_train,shuffle=True,train_size=self.maxn)
+			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=(y_train if not self.is_regression else None),shuffle=True,train_size=self.maxn)
 		if self.maxn<X_test.shape[0]-1:
-			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=y_test,shuffle=True,train_size=self.maxn)
+			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=(y_test if not self.is_regression else None),shuffle=True,train_size=self.maxn)
 		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
