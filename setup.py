@@ -4,7 +4,7 @@ import subprocess
 import os
 PACKAGES=['scikit-learn>=0.22',
           'shap>=0.34.0',
-          'dask>=2.9.1',
+          'dask[complete]>=2.9.1',
           'patsy',
           'safe-transformer>=0.0.5',
           'numpy>=0.16.4',
