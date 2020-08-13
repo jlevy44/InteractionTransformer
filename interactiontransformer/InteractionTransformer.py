@@ -18,10 +18,49 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pysnooper
 from contextlib import contextmanager
+import xgboost
 
 @contextmanager
 def nullcontext(enter_result=None):
-    yield enter_result
+	yield enter_result
+
+def c_statistic_harrell(labels, pred):
+	# https://slundberg.github.io/shap/notebooks/NHANES%20I%20Survival%20Model.html
+	if "values" in dir(labels): labels=labels.values
+	total = 0
+	matches = 0
+	for i in range(len(labels)):
+		for j in range(len(labels)):
+			if labels[j] > 0 and abs(labels[i]) > labels[j]:
+				total += 1
+				if pred[j] > pred[i]:
+					matches += 1
+	return matches/total
+
+class XGBoostSurvival(object):
+	def __init__(self,train_iterations=10000,verbose_eval=1000,eval_train_set=False,ntree_limit=5000,**model_params):
+		self.model_params=model_params
+		self.model_params['objective']="survival:cox"
+		self.model=None
+		self.train_iterations=train_iterations
+		self.verbose_eval=verbose_eval
+		self.eval_train_set=eval_train_set
+		self.ntree_limit=ntree_limit
+
+	def fit(self,X_train,y_train,X_val=None,y_val=None,**kargs):
+		design_matrix = xgboost.DMatrix(X_train, label=y_train)
+		if self.eval_train_set:
+			X_val,y_val=X_train,y_train
+		self.model = xgboost.train(self.model_params, design_matrix, self.train_iterations, evals = () if isinstance(X_val,type(None)) else (xgboost.DMatrix(X_val, label=y_val), "val"), verbose_eval=self.verbose_eval)
+		return self
+
+	def predict(self,X_test):
+		design_matrix = xgboost.DMatrix(X_test)
+		return self.model.predict(design_matrix, ntree_limit=self.ntree_limit)
+
+	def return_model(self):
+		return self.model
+
 
 class InteractionTransformer(TransformerMixin):
 	"""Transformer object that will automatically extract interaction design terms from your data.
@@ -67,11 +106,14 @@ class InteractionTransformer(TransformerMixin):
 						dask_scheduler='processes',
 						verbose=False,
 						num_workers=1,
-						tree_limit=None):
+						tree_limit=None,
+						use_background_data=True,
+						compute_interaction_dask=True,
+						knee_sensitivity=1.0):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
-		assert cv_scoring in ['auc', 'acc', 'f1', 'r2', 'mae']
+		assert cv_scoring in ['auc', 'acc', 'f1', 'r2', 'mae', 'survival']
 		assert dask_scheduler in ['threading','processes']
 		self.mode_extract=mode_interaction_extract
 		self.self_interactions=include_self_interactions
@@ -82,13 +124,17 @@ class InteractionTransformer(TransformerMixin):
 						'f1':lambda y_true,y_pred: f1_score(y_true,y_pred,average='macro'),
 						'mae':mean_absolute_error,
 						'r2':r2_score,
-						'acc':accuracy_score}
+						'acc':accuracy_score,
+						'survival':c_statistic_harrell}
 		self.dask_scheduler=dask_scheduler
 		self.feature_perturbation='tree_path_dependent'
 		self.verbose=verbose
 		self.num_workers=num_workers
 		self.tree_limit=tree_limit
 		self.is_regression=(self.cv_scoring not in ['auc', 'acc', 'f1'])
+		self.use_background_data=use_background_data
+		self.dask_interactions=compute_interaction_dask
+		self.knee_sensitivity=knee_sensitivity
 
 	@staticmethod
 	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
@@ -135,14 +181,23 @@ class InteractionTransformer(TransformerMixin):
 			X_train,_,y_train,_=train_test_split(X_train,y_train,random_state=self.random_state,stratify=(y_train if not self.is_regression else None),shuffle=True,train_size=self.maxn)
 		if self.maxn<X_test.shape[0]-1:
 			X_test,_,y_test,_=train_test_split(X_test,y_test,random_state=self.random_state,stratify=(y_test if not self.is_regression else None),shuffle=True,train_size=self.maxn)
-		explainer = shap.TreeExplainer(model, X_train, feature_perturbation=self.feature_perturbation)
+		explainer = shap.TreeExplainer((model if not model.__class__.__name__=="XGBoostSurvival" else model.return_model()), (X_train if self.use_background_data else None), feature_perturbation=self.feature_perturbation)
 		features=list(X_train)
 		self.features=features
 		to_sum=lambda x: x.sum(0)[0] if 'predict_proba' in dir(model) else x
 		with ProgressBar() if self.verbose else nullcontext():
-			shap_vals=dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers)
-			if self.is_regression:
-				shap_vals=np.stack(shap_vals).mean(0)
+			if not self.dask_interactions:
+				shap_vals=np.abs(explainer.shap_interaction_values(X_test,tree_limit=self.tree_limit))
+				if 'predict_proba' in dir(model):
+					shap_vals=np.stack([shap_vals[i].sum(0) for i in range(shap_vals.shape[0])])
+			else:
+				shap_vals=np.stack(dask.compute(*[dask.delayed(lambda x: to_sum(np.abs(explainer.shap_interaction_values(x,tree_limit=self.tree_limit))))(pd.DataFrame(X_test.iloc[i,:]).T) for i in range(X_test.shape[0])],scheduler=self.dask_scheduler,num_workers=self.num_workers))
+			# if self.is_regression:
+			# 	shap_vals=np.stack(shap_vals).mean(0)
+			print("Shap Interaction Size:",shap_vals.shape)
+		self.shap_values=dict(shap_vals=explainer.shap_values(X_test),
+								y_true=y_test,
+								y_pred=model.predict(X_test))
 		# import pickle
 		# pickle.dump(shap_vals,open('shap_test.pkl','wb'))
 		true_top_interactions=self.get_top_interactions(shap_vals)
@@ -164,7 +219,7 @@ class InteractionTransformer(TransformerMixin):
 			Top interactions.
 
 		"""
-		interaction_matrix=pd.DataFrame(reduce(lambda x,y:x+y,shap_vals)/len(shap_vals),columns=self.features,index=self.features)
+		interaction_matrix=pd.DataFrame(shap_vals.mean(0),columns=self.features,index=self.features)#reduce(lambda x,y:x+y,shap_vals)/len(shap_vals)
 		interation_matrix_self_interact_removed=interaction_matrix.copy()
 		if not self.self_interactions:
 			for i in np.arange(interaction_matrix.shape[0]):
@@ -172,7 +227,7 @@ class InteractionTransformer(TransformerMixin):
 		if self.mode_extract=='knee':
 			try:
 				x,y=np.arange(interation_matrix_self_interact_removed.shape[0]**2),np.sort(interation_matrix_self_interact_removed.values.ravel())[::-1]
-				kneed=KneeLocator(x, y, direction='decreasing', curve='convex')
+				kneed=KneeLocator(x, y, direction='decreasing', curve='convex',S=self.knee_sensitivity)
 				n_top_interactions=min(100,kneed.knee)
 			except Exception as e:
 				print(e)
@@ -248,7 +303,7 @@ class InteractionTransformerExtraction(TransformerMixin):# one application is an
 	def transform(self,X):
 		return self.pipeline.transform(X)
 
-def run_shap(X_train, X_test, model, model_type='tree', explainer_options={}, get_shap_values_options={}, overall=False, savefile=''):
+def run_shap(X_train, X_test, model, model_type='tree', regression=False, use_background_data=True, explainer_options={}, get_shap_values_options={}, overall=False, savefile=''):
 	"""Executes a SHAP routine over training and testing design matrices given the specified model and generates useful plots.
 	Returns a SHAP explainer object and the SHAP values for the model fit.
 
@@ -282,12 +337,12 @@ def run_shap(X_train, X_test, model, model_type='tree', explainer_options={}, ge
 
 	shap_model={'tree':shap.TreeExplainer,'kernel':shap.KernelExplainer,'linear':shap.LinearExplainer}[model_type]
 
-	explainer = shap_model(model, X_train,**explainer_options)
+	explainer = shap_model(model, X_train if use_background_data else None,**explainer_options)
 
 	shap_values = explainer.shap_values(X_test,**get_shap_values_options)
 
-	if model_type=='tree' and model.__class__.__name__!='XGBClassifier':
-		shap_values=np.array(shap_values)[1,...]
+	if model_type=='tree' and model.__class__.__name__!='XGBClassifier' and not regression:
+		shap_values=np.array(shap_values)[1,...] # verify that this is not for binary outcomes
 
 	plt.figure()
 	shap.summary_plot(shap_values, X_test,feature_names=list(X_train), plot_type='bar' if overall else 'dot', max_display=30)

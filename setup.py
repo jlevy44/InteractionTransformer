@@ -9,11 +9,13 @@ PACKAGES=['scikit-learn>=0.22',
           'safe-transformer>=0.0.5',
           'numpy>=0.16.4',
           'pandas>=0.25.3',
-          'kneed>=0.5.1',
+          'kneed>=0.7.0',
           'imbalanced-learn>=0.6.1',
           'pysnooper>=0.3.0',
           'matplotlib>=3.0.0',
-          'openml==0.9.0']
+          'openml==0.9.0',
+          "xgboost==1.0.0",
+          "seaborn>=0.10.0"]
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
@@ -24,7 +26,7 @@ class CustomInstallCommand(install):
         self.do_egg_install()
 
 setup(name='interactiontransformer',
-      version='0.1.1',
+      version='0.1.2',
       description='Extract interactions from complex model using SHAP and add to linear model..',
       url='https://github.com/jlevy44/InteractionExtractor',
       author='Joshua Levy',
