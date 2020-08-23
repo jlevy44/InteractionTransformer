@@ -109,7 +109,8 @@ class InteractionTransformer(TransformerMixin):
 						tree_limit=None,
 						use_background_data=True,
 						compute_interaction_dask=True,
-						knee_sensitivity=1.0):
+						knee_sensitivity=1.0,
+						save_shap_values=False):
 		self.maxn=max_train_test_samples
 		self.model=untrained_model
 		assert (mode_interaction_extract in ['knee','sqrt']) or isinstance(mode_interaction_extract,int)
@@ -135,6 +136,7 @@ class InteractionTransformer(TransformerMixin):
 		self.use_background_data=use_background_data
 		self.dask_interactions=compute_interaction_dask
 		self.knee_sensitivity=knee_sensitivity
+		self.save_shap_values=save_shap_values
 
 	@staticmethod
 	def return_cv_score(X_train, X_test, y_train, y_test, tmp_model, scoring_fn):
@@ -195,7 +197,8 @@ class InteractionTransformer(TransformerMixin):
 			# if self.is_regression:
 			# 	shap_vals=np.stack(shap_vals).mean(0)
 			print("Shap Interaction Size:",shap_vals.shape)
-		self.shap_values=dict(shap_vals=explainer.shap_values(X_test),
+		if self.save_shap_values:
+			self.shap_values=dict(shap_vals=explainer.shap_values(X_test),
 								y_true=y_test,
 								y_pred=model.predict(X_test))
 		# import pickle
