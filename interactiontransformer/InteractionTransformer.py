@@ -107,7 +107,7 @@ class InteractionTransformer(TransformerMixin):
 						verbose=False,
 						num_workers=1,
 						tree_limit=None,
-						use_background_data=True,
+						use_background_data=False,
 						compute_interaction_dask=True,
 						knee_sensitivity=1.0,
 						save_shap_values=False):
@@ -128,12 +128,12 @@ class InteractionTransformer(TransformerMixin):
 						'acc':accuracy_score,
 						'survival':c_statistic_harrell}
 		self.dask_scheduler=dask_scheduler
-		self.feature_perturbation='tree_path_dependent'
 		self.verbose=verbose
 		self.num_workers=num_workers
 		self.tree_limit=tree_limit
 		self.is_regression=(self.cv_scoring not in ['auc', 'acc', 'f1'])
 		self.use_background_data=use_background_data
+		self.feature_perturbation='tree_path_dependent' if self.use_background_data else "interventional"
 		self.dask_interactions=compute_interaction_dask
 		self.knee_sensitivity=knee_sensitivity
 		self.save_shap_values=save_shap_values
